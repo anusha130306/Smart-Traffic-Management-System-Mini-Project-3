@@ -1,0 +1,3 @@
+// for converting osm file to .net : netconvert --osm-files map.osm -o my_network.net.xml
+
+//for random paths for cars : python "%SUMO_HOME%\tools\randomTrips.py" -n my_network.net.xml -r my_routes.rou.xml -p 20 -e 86400

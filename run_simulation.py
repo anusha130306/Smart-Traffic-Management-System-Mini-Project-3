@@ -71,3 +71,5 @@ while traci.simulation.getTime() < 86400:
     step += 1
 
 traci.close()
+
+#demo msg

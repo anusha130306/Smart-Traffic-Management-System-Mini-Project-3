@@ -3,7 +3,7 @@ import sys
 import random
 import traci
 from sumolib import checkBinary
-#this is from the github
+
 # 1. FIND SUMO AND TRACI ON YOUR SYSTEM
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')

@@ -2,6 +2,6 @@
 <routes>
     <vType id="car" vClass="passenger" length="4.5" accel="2.6" decel="4.5" maxSpeed="14.0" color="yellow" guiShape="passenger/sedan"/>
     <vType id="truck" vClass="truck" length="12.0" accel="0.8" decel="3.0" maxSpeed="8.0" color="blue" guiShape="truck"/>
-    <vType id="bike" vClass="motorcycle" length="2.0" accel="3.5" decel="5.0" maxSpeed="16.0" color="green" guiShape="motorcycle"/>
+    <vType id="bike" vClass="motorcycle" length="3.0" accel="3.5" decel="5.0" maxSpeed="16.0" color="green" guiShape="motorcycle"/>
     <vType id="ambulance" vClass="authority" length="6.5" accel="3.0" decel="4.5" maxSpeed="18.0" color="red" guiShape="emergency"/>
 </routes>

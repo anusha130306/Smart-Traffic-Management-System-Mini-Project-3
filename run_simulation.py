@@ -20,7 +20,7 @@ routes_xml = """<?xml version="1.0" encoding="UTF-8"?>
     <vType id="ambulance" vClass="authority" length="6.5" accel="3.0" decel="4.5" maxSpeed="18.0" color="red" guiShape="emergency"/>
     <vType id="sedan" vClass="passenger" guiShape="passenger/sedan" length="4.5" width="1.8" maxSpeed="22.2" accel="2.6" decel="4.5" color="yellow"/>
     <vType id="hatchback" vClass="passenger" guiShape="passenger/hatchback" length="3.8" width="1.7" maxSpeed="20.0" accel="2.8" decel="4.5" color="cyan"/>
-    <vType id="suv" vClass="evehicle" guiShape="passenger/wagon" length="4.8" width="1.9" maxSpeed="25.0" accel="2.5" decel="4.2" color="darkblue"/>
+    <vType id="suv" vClass="evehicle" guiShape="passenger/wagon" length="4.8" width="1.9" maxSpeed="25.0" accel="2.5" decel="4.2" color="blue"/>
     <vType id="sports_car" vClass="passenger" guiShape="passenger" length="4.2" width="1.9" maxSpeed="33.3" accel="4.0" decel="5.0" color="red"/>
     <vType id="taxi" vClass="taxi" guiShape="passenger/sedan" length="4.4" width="1.8" maxSpeed="20.0" accel="2.5" decel="4.5" color="255,200,0"/>
     <vType id="e_car" vClass="evehicle" guiShape="passenger/hatchback" length="4.0" width="1.8" maxSpeed="22.0" accel="3.2" decel="4.8" color="0,255,128"/>

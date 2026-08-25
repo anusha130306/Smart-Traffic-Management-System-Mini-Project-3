@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<<<<<<< HEAD
 <!-- generated on 2026-08-25T14:04:06.145047+05:30 by Eclipse SUMO sumo 1.27.1
+=======
+<!-- generated on 2026-08-25T14:07:16.670962+05:30 by Eclipse SUMO sumo 1.27.1
+>>>>>>> 744617df99830f28d3b501a7297ace7cae944cbe
 -->
 
 <sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">

@@ -55,7 +55,7 @@ except Exception as e:
     sys.exit(f"Failed to start SUMO. Error: {e}")
 
 # 4. SET UP DYNAMIC ROUTING 
-print("Running simulation with dynamic random routing for 4 vehicle types...")
+print("Running simulation with dynamic random routing for vehicle types...")
 all_edges = [e for e in traci.edge.getIDList() if not e.startswith(":")]
 v_types = ["car", "truck", "bike", "ambulance", "sedan","hatchback","suv","sports_car", "taxi","e_car","motorcycle","scooter","auto_rickshaw","e_rickshaw","bicycle","fire_truck","police_car","tractor"]
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-08-26T12:50:23.779142+05:30 by Eclipse SUMO netedit 1.27.1
+<!-- generated on 2026-08-26T23:54:48.497445+05:30 by Eclipse SUMO netedit 1.27.1
 <neteditConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
@@ -34,7 +34,7 @@
 
 <net version="1.20" junctionCornerDetail="5" limitTurnSpeed="5.50" avoidOverlap="0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
 
-    <location netOffset="0.00,0.00" convBoundary="-105.06,-94.82,105.06,94.57" origBoundary="-10000000000.00,-10000000000.00,10000000000.00,10000000000.00" projParameter="!"/>
+    <location netOffset="0.00,0.00" convBoundary="-105.06,-94.65,105.06,94.57" origBoundary="-10000000000.00,-10000000000.00,10000000000.00,10000000000.00" projParameter="!"/>
 
     <edge id="E0" from="J0" to="clusterJ1_J10_J12_J15_#4more" priority="-1" spreadType="center" shape="-105.06,12.01 -14.26,7.19">
         <lane id="E0_0" index="0" speed="13.89" length="105.53" shape="-105.23,8.81 -14.73,4.01"/>
@@ -56,9 +56,9 @@
         <lane id="E3_1" index="1" speed="13.89" length="106.65" shape="104.62,-9.78 16.05,-4.02"/>
         <lane id="E3_2" index="2" speed="13.89" length="106.65" shape="104.41,-12.97 15.96,-7.22"/>
     </edge>
-    <edge id="E4" from="J8" to="clusterJ1_J10_J12_J15_#4more" priority="-1" spreadType="center" shape="-22.39,-94.82 -6.20,-13.13">
-        <lane id="E4_0" index="0" speed="13.89" length="101.28" shape="-20.82,-95.13 -4.69,-13.75"/>
-        <lane id="E4_1" index="1" speed="13.89" length="101.28" shape="-23.96,-94.51 -7.86,-13.26"/>
+    <edge id="E4" from="J8" to="clusterJ1_J10_J12_J15_#4more" priority="-1" spreadType="center" shape="-22.23,-93.65 -6.20,-13.13">
+        <lane id="E4_0" index="0" speed="13.89" length="100.10" shape="-20.66,-93.96 -4.69,-13.75"/>
+        <lane id="E4_1" index="1" speed="13.89" length="100.10" shape="-23.80,-93.34 -7.86,-13.26"/>
     </edge>
     <edge id="E5" from="clusterJ1_J10_J12_J15_#4more" to="J11" priority="-1" spreadType="center" shape="0.14,-14.17 -15.99,-94.65">
         <lane id="E5_0" index="0" speed="13.89" length="100.03" shape="-1.51,-14.25 -17.56,-94.34"/>
@@ -87,7 +87,7 @@
     <junction id="J3" type="dead_end" x="-104.89" y="1.06" incLanes="E1_0 E1_1 E1_2" intLanes="" shape="-104.64,5.85 -105.14,-3.73"/>
     <junction id="J5" type="dead_end" x="105.06" y="0.96" incLanes="E2_0 E2_1 E2_2" intLanes="" shape="104.77,-3.83 105.35,5.75"/>
     <junction id="J6" type="dead_end" x="104.62" y="-9.78" incLanes="" intLanes="" shape="104.31,-14.57 104.93,-4.99"/>
-    <junction id="J8" type="dead_end" x="-22.39" y="-94.82" incLanes="" intLanes="" shape="-25.53,-94.20 -19.25,-95.44"/>
+    <junction id="J8" type="dead_end" x="-22.23" y="-93.65" incLanes="" intLanes="" shape="-25.37,-93.03 -19.09,-94.27"/>
     <junction id="clusterJ1_J10_J12_J15_#4more" type="traffic_light" x="-0.05" y="3.79" incLanes="E3_0 E3_1 E3_2 E4_0 E4_1 E0_0 E0_1 E0_2 E7_0 E7_1" intLanes="" shape="7.45,-10.20 10.22,-8.73 12.75,-8.32 15.92,-8.67 16.48,11.02 12.57,13.74 9.79,16.84 7.87,20.58 -4.89,20.96 -6.90,16.80 -8.61,14.01 -11.09,12.52 -14.32,12.17 -15.35,-8.14 -12.37,-8.98 -10.25,-10.51 -9.24,-13.05 3.15,-14.97 5.28,-12.14" customShape="1">
         <request index="0"  response="000000000000000000" foes="000000000011000000"/>
         <request index="1"  response="000000000000000000" foes="111110000111000000"/>

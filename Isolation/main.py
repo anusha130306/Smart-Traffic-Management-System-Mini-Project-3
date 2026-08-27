@@ -131,7 +131,7 @@ def start_sumo():
         traci.start([
             sumo_binary,
             "-c", SUMO_CONFIG,
-            "--delay", "100",
+            "--delay", "1000",
             "--step-length", "0.01",
             "--lateral-resolution", "0.01"
         ])

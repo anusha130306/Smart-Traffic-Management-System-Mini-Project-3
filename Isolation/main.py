@@ -58,17 +58,18 @@ def generate_random_traffic():
         start_edge = random.choice(INCOMING_EDGES)
         route = random.choice(VALID_ROUTES[start_edge])
         vehicle_type = random_vehicle_type()
+        color = f"{random.randint(30, 255)},{random.randint(30, 255)},{random.randint(30, 255)}"
 
         depart_time = random.uniform(0, SIMULATION_TIME - 1)
 
         vehicles.append(
-            (depart_time, vehicle_id, vehicle_type, route)
+            (depart_time, vehicle_id, vehicle_type, route, color)
         )
 
     vehicles.sort(key=lambda x: x[0])
 
     # Add routes and vehicles to the route file
-    for i, (depart_time, vehicle_id, vehicle_type, route) in enumerate(vehicles):
+    for i, (depart_time, vehicle_id, vehicle_type, route, color) in enumerate(vehicles):
         route_id = f"route_{i}"
 
         ET.SubElement(
@@ -86,7 +87,9 @@ def generate_random_traffic():
             route=route_id,
             depart=f"{depart_time:.2f}",
             departLane="random",
-            departSpeed="random"
+            departSpeed="random",
+            color=color,
+
         )
 
     # Save the generated route file

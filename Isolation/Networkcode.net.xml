@@ -21,8 +21,8 @@
     </processing>
 
     <junctions>
-        <no-internal-links value="true"/>
-        <no-turnarounds value="true"/>
+        <no-internal-links value="false"/>
+        <no-turnarounds value="false"/>
     </junctions>
 
     <netedit>

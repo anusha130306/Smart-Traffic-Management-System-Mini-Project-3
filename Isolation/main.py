@@ -89,9 +89,7 @@ def generate_random_traffic():
             departLane="random",
             departSpeed="random",
             color=color,
-
         )
-
     # Save the generated route file
     tree = ET.ElementTree(routes)
     ET.indent(tree, space="    ")

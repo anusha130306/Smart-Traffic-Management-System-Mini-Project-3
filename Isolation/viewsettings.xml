@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<viewsettings>
+
+    <!-- Visualization scheme -->
+    <scheme name="real world"/>
+
+    <!-- Simulation delay -->
+    <delay value="1000"/>
+
+    <!-- Center the view on your network -->
+    <viewport
+        x="0"
+        y="0"
+        zoom="100"
+        angle="0"
+    />
+
+    <!-- Your aerial/background image -->
+    <decal
+        file="IsolationArielImage.png"
+        centerX="0"
+        centerY="0"
+        width="210.12"
+        height="189.22"
+        rotation="0"
+        layer="-1"
+    />
+
+</viewsettings>

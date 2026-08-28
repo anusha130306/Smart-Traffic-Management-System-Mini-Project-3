@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-08-27T21:40:03.433719+05:30 by Eclipse SUMO sumo 1.27.1
+<!-- generated on 2026-08-28T00:56:00.382200+05:30 by Eclipse SUMO sumo 1.27.1
 -->
 
 <sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
@@ -8,16 +8,7 @@
     <input>
         <net-file value="Networkcode.net.xml"/>
         <route-files value="Editfile.rou.xml"/>
-    </input>
-
-    <time>
-        <begin value="0"/>
-        <end value="3600"/>
-        <step-length value="0.01"/>
-    </time>
-
-    <gui_only>
         <gui-settings-file value="viewsettings.xml"/>
-    </gui_only>
+    </input>
 
 </sumoConfiguration>

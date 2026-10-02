@@ -1,0 +1,11 @@
+<viewsettings>
+    <scheme name="real world">
+        <pois poiType_show="1" poiType_size="90" poiType_color="255,255,255"
+              poiType_bgColor="0,0,0,0" poiType_constantSize="1"
+              poiName_show="0" poiText_show="0"/>
+    </scheme>
+    <delay value="1000"/>
+    <viewport x="0" y="0" zoom="150" angle="0"/>
+    <decal file="e:\Anu\Projects\Traffic Management\Isolation\IsolationArielImage.png" centerX="0" centerY="0"
+           width="210.12" height="189.22" rotation="0" layer="-1"/>
+</viewsettings>

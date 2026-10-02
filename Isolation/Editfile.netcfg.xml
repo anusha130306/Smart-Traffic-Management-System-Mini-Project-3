@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-08-28T00:56:00.378055+05:30 by Eclipse SUMO netedit 1.27.1
+<!-- generated on 2026-10-01T16:17:53.661906+05:30 by Eclipse SUMO netedit 1.27.1
 -->
 
 <neteditConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
@@ -20,7 +20,7 @@
 
     <junctions>
         <no-internal-links value="false"/>
-        <no-turnarounds value="false"/>
+        <no-turnarounds value="true"/>
         <no-turnarounds.geometry value="false"/>
     </junctions>
 

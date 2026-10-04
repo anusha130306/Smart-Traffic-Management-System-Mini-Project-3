@@ -3,9 +3,7 @@
 import math
 import os
 import random
-import struct
 import time
-import wave
 import xml.etree.ElementTree as ET
 import traci
 
@@ -37,9 +35,9 @@ USE_GUI = os.environ.get("USE_GUI", "1") == "1"
 #         (o)         <- circle, shows the light colour (red / green / yellow)
 #     TIMER : 15      <- bottom text
 # =============================================================================
-TEXT_DISTANCE = 4.5            # metres from the panel centre to the top / bottom text
+TEXT_DISTANCE = 4.0            # metres from the panel centre to the top / bottom text
 PANEL_WIDTH = 17.0             # metres - make bigger if the text does not fit
-PANEL_HEIGHT = 13.0            # metres
+PANEL_HEIGHT = 14.0            # metres
 CIRCLE_RADIUS = 1.6            # metres - size of the light circle
 HALO_RADIUS = 2.6              # metres - highlight ring behind the circle (emergency lane)
 
@@ -93,12 +91,10 @@ SECONDS_PER_VEHICLE = {
 DEFAULT_SECONDS_PER_VEHICLE = 1.0
 DETECTION_DISTANCE = 80.0      # metres before the stop line where vehicles are counted
 MIN_TIMER = 10                 # shortest timer in seconds (includes the yellow time)
-MAX_TIMER = 50                 # longest timer in seconds
+MAX_TIMER = 40                 # longest timer in seconds
 YELLOW_TIME = 3                # last N seconds of the timer show YELLOW
 ALL_RED_TIME = 2               # seconds when every light is red, after timer hits 0
-RESUME_IF_GREEN_SECONDS = 5    # if an emergency interrupts a lane that had at most this many
-                               # seconds of green, that lane starts again after the emergency.
-                               # If it had more, the cycle moves on to the next lane.
+RESUME_IF_GREEN_SECONDS = 10    # if an emergency interrupts a lane that had at most this many
 assert MIN_TIMER > YELLOW_TIME
 
 # =============================================================================
@@ -203,8 +199,8 @@ def create_random_traffic():
     ET.SubElement(routes, "vType", id="truck", vClass="truck", accel="1.0", decel="3.5", sigma="0.5", length="10.0", minGap="3.0", maxSpeed="11.11")
     ET.SubElement(routes, "vType", id="bus", vClass="bus", accel="1.2", decel="4.0", sigma="0.5", length="12.0", minGap="3.0", maxSpeed="12.5")
     ET.SubElement(routes, "vType", id="van", vClass="delivery", accel="2.0", decel="4.0", sigma="0.5", length="5.5", minGap="2.5", maxSpeed="13.89")
-    ET.SubElement(routes, "vType", id="ambulance", vClass="emergency", guiShape="emergency", accel="3.0", decel="5.0", sigma="0.3", length="6.0", minGap="2.0", maxSpeed="16.67", color="255,255,255")
-    ET.SubElement(routes, "vType", id="firetruck", vClass="emergency", guiShape="firebrigade", accel="2.5", decel="4.5", sigma="0.3", length="9.0", minGap="2.5", maxSpeed="15.0", color="220,0,0")
+    ET.SubElement(routes, "vType", id="ambulance", vClass="emergency", guiShape="emergency", accel="5.0", decel="5.0", sigma="0.3", length="6.0", minGap="2.0", maxSpeed="20.67", color="255,255,255")
+    ET.SubElement(routes, "vType", id="firetruck", vClass="emergency", guiShape="firebrigade", accel="4.5", decel="4.5", sigma="0.3", length="9.0", minGap="2.5", maxSpeed="20.0", color="220,0,0")
 
     vehicle_list = []
     for i in range(NUMBER_OF_VEHICLES):
@@ -607,76 +603,16 @@ class SignalController:
 # =============================================================================
 # TRAFFIC SOUND
 # =============================================================================
-def save_tone(file_path, seconds, pitches, fade=0.03, wobble_hz=0):
-    """Makes a simple .wav sound by mixing pitches (frequency in Hz, volume)."""
-    rate = 22050
-    total = int(rate * seconds)
-    samples = []
-    for n in range(total):
-        t = n / rate
-        value = sum(volume * math.sin(2 * math.pi * hz * t) for hz, volume in pitches)
-        if wobble_hz:                                   # slow up-down wobble (engine feel)
-            value *= 0.8 + 0.2 * math.sin(2 * math.pi * wobble_hz * t)
-        # fade in and fade out so there is no "click" sound
-        edge = min(t, seconds - t)
-        if edge < fade:
-            value *= edge / fade
-        samples.append(int(max(-1.0, min(1.0, value)) * 32000))
-
-    with wave.open(file_path, "w") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(rate)
-        f.writeframes(b"".join(struct.pack("<h", s) for s in samples))
-
-def save_siren(file_path, seconds=2.0, base_hz=900, sweep_hz=400):
-    """Wailing siren: pitch rises and falls once per loop (loops seamlessly)."""
-    rate = 22050
-    samples = []
-    for n in range(int(rate * seconds)):
-        t = n / rate
-        phase = 2 * math.pi * (base_hz * t + sweep_hz * seconds / (2 * math.pi) * (1 - math.cos(2 * math.pi * t / seconds)))
-        samples.append(int(0.6 * math.sin(phase) * 32000))
-    with wave.open(file_path, "w") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(rate)
-        f.writeframes(b"".join(struct.pack("<h", s) for s in samples))
-
-def create_sound_files():
-    """Makes the sound files if they are missing.
-    You can replace any of them with your own real .wav file
-    (keep the same file name) inside the 'sounds' folder."""
-    os.makedirs(SOUND_DIR, exist_ok=True)
-    sounds = {
-        # name         : (seconds, [(pitch Hz, volume), ...], wobble Hz)
-        # hum is 2 seconds with whole-number pitches, so it loops smoothly
-        "traffic_hum": (2.0, [(50, 0.5), (100, 0.3), (150, 0.15), (200, 0.08)], 6),
-        "horn_car":    (0.5, [(400, 0.4), (500, 0.4), (800, 0.1), (1000, 0.1)], 0),
-        "horn_bike":   (0.25, [(800, 0.45), (1000, 0.45), (1600, 0.1)], 0),
-        "horn_bus":    (0.8, [(300, 0.4), (380, 0.4), (600, 0.1), (760, 0.1)], 0),
-        "horn_truck":  (1.0, [(200, 0.4), (250, 0.4), (400, 0.1), (500, 0.1)], 0),
-    }
-    for name, (seconds, pitches, wobble) in sounds.items():
-        path = os.path.join(SOUND_DIR, name + ".wav")
-        if not os.path.exists(path):
-            save_tone(path, seconds, pitches, wobble_hz=wobble)
-
-    siren_path = os.path.join(SOUND_DIR, "siren.wav")
-    if not os.path.exists(siren_path):
-        save_siren(siren_path)
-
-    # Fire truck siren: lower and slower than the ambulance siren
-    fire_path = os.path.join(SOUND_DIR, "siren_fire.wav")
-    if not os.path.exists(fire_path):
-        save_siren(fire_path, seconds=3.0, base_hz=600, sweep_hz=250)
 
 class TrafficSound:
-    """Plays traffic sounds while the simulation runs:
+    """Plays traffic sounds from the .wav files in the 'sounds' folder:
          1. A traffic hum that gets louder when more vehicles are moving.
          2. Horns from vehicles that have been waiting for a long time.
          3. A siren while any ambulance is on the road.
          4. A different siren while any fire truck is on the road."""
+
+    SOUND_NAMES = ["traffic_hum", "horn_car", "horn_bike", "horn_bus",
+                   "horn_truck", "siren", "siren_fire"]
 
     def __init__(self):
         self.ready = False
@@ -689,27 +625,23 @@ class TrafficSound:
             return
         try:
             import pygame
-        except ImportError:
-            print("Sound is OFF. To turn it on, run:  pip install pygame")
-            return
-        try:
-            create_sound_files()
-            pygame.mixer.init(frequency=22050, size=-16, channels=1)
+            pygame.mixer.init()
             pygame.mixer.set_num_channels(16)
-            self.sounds = {}
-            for name in ["traffic_hum", "horn_car", "horn_bike", "horn_bus", "horn_truck", "siren", "siren_fire"]:
-                self.sounds[name] = pygame.mixer.Sound(os.path.join(SOUND_DIR, name + ".wav"))
-            self.sounds["traffic_hum"].set_volume(0.0)
-            self.sounds["traffic_hum"].play(loops=-1)    # keeps playing all the time
-            self.sounds["siren"].set_volume(0.0)
-            self.sounds["siren"].play(loops=-1)          # silent until an ambulance appears
-            self.sounds["siren_fire"].set_volume(0.0)
-            self.sounds["siren_fire"].play(loops=-1)     # silent until a fire truck appears
+            self.sounds = {
+                name: pygame.mixer.Sound(os.path.join(SOUND_DIR, name + ".wav"))
+                for name in self.SOUND_NAMES
+            }
+            # looping sounds start silent; update() raises the volume when needed
+            for name in ("traffic_hum", "siren", "siren_fire"):
+                self.sounds[name].set_volume(0.0)
+                self.sounds[name].play(loops=-1)
             self.pygame = pygame
             self.ready = True
             print("Sound is ON")
+        except ImportError:
+            print("Sound is OFF. To turn it on, run:  pip install pygame")
         except Exception as e:
-            print("Sound is OFF (could not start audio):", e)
+            print("Sound is OFF:", e)
 
     def update(self):
         """Call this after every simulation step."""
@@ -718,6 +650,7 @@ class TrafficSound:
         self.step_number += 1
         if self.step_number % CHECK_SOUND_EVERY_STEPS != 0:
             return
+
         moving_count = 0
         ambulance_count = 0
         fire_count = 0
@@ -732,7 +665,7 @@ class TrafficSound:
             if speed > 0.5:
                 moving_count += 1
             elif speed < 0.1 and traci.vehicle.getWaitingTime(vehicle_id) >= HONK_AFTER_WAITING:
-                waiting_vehicles.append(vehicle_id)
+                waiting_vehicles.append((vehicle_id, vehicle_type))
 
         # 1. Traffic hum: more moving vehicles = louder (changes smoothly)
         target = min(1.0, moving_count / FULL_VOLUME_VEHICLES) * HUM_MAX_VOLUME
@@ -751,10 +684,8 @@ class TrafficSound:
         # 3. Horn: a long-waiting vehicle may honk now and then
         if waiting_vehicles and random.random() < HONK_CHANCE:
             if time.time() - self.last_honk_time >= HONK_GAP_SECONDS:
-                vehicle_id = random.choice(waiting_vehicles)
-                vehicle_type = traci.vehicle.getTypeID(vehicle_id)
-                horn_name = HORN_OF_VEHICLE.get(vehicle_type, "horn_car")
-                horn = self.sounds[horn_name]
+                _, vehicle_type = random.choice(waiting_vehicles)
+                horn = self.sounds[HORN_OF_VEHICLE.get(vehicle_type, "horn_car")]
                 horn.set_volume(HONK_VOLUME)
                 horn.play()
                 self.last_honk_time = time.time()

@@ -1,4 +1,4 @@
-# # # # # # finaly we are starting the project again 
+# # # # # # # finaly we are starting the project again 
 
 import math
 import os
@@ -96,6 +96,9 @@ MIN_TIMER = 10                 # shortest timer in seconds (includes the yellow 
 MAX_TIMER = 50                 # longest timer in seconds
 YELLOW_TIME = 3                # last N seconds of the timer show YELLOW
 ALL_RED_TIME = 2               # seconds when every light is red, after timer hits 0
+RESUME_IF_GREEN_SECONDS = 5    # if an emergency interrupts a lane that had at most this many
+                               # seconds of green, that lane starts again after the emergency.
+                               # If it had more, the cycle moves on to the next lane.
 assert MIN_TIMER > YELLOW_TIME
 
 # =============================================================================
@@ -306,6 +309,8 @@ class SignalController:
         self.phase = None                # GREEN, YELLOW or ALL_RED
         self.phase_end_time = 0.0        # when the current colour ends
         self.timer_end_time = 0.0        # when the timer reaches 0
+        self.green_start_time = 0.0      # when the current green started
+        self.pending_lane = 0            # lane that gets green after the next all-red
         self.fixed_timer = 0             # timer chosen at the start (does not change)
         self.fixed_count = 0             # vehicle count at the start (does not change)
         self.fixed_demand = 0.0
@@ -342,7 +347,7 @@ class SignalController:
         (x1, y1), (x2, y2) = shape[-2], shape[-1]
         length = math.hypot(x2 - x1, y2 - y1) or 1.0
         dx, dy = (x2 - x1) / length, (y2 - y1) / length
-        # 20 m back from the junction, 15 m to the left of the driving direction
+        # 10 m back from the junction, 15 m to the left of the driving direction
         return x2 - dx * 10 - dy * 15, y2 - dy * 10 + dx * 15
 
     def _rectangle_shape(self, x, y):
@@ -393,24 +398,40 @@ class SignalController:
         for i in self.signals_of_lane[INCOMING_EDGES[lane_index]]:
             state[i] = colour
         traci.trafficlight.setRedYellowGreenState(self.light_id, "".join(state))
+
     def _show_all_red(self):
         traci.trafficlight.setRedYellowGreenState(self.light_id, "r" * self.signal_count)
 
-    # ---------- changing from one phase to the next ----------
-    def _start_green(self, lane_index, now):
-        edge = INCOMING_EDGES[lane_index]
-        count, demand, _ = count_vehicles_in_lane(edge)
+    # ---------- normal cycle ----------
+    def _start_green(self, first_lane, now):
+        """Starts green for first_lane. If that lane is EMPTY it is skipped
+        (timer 0) and the next lane is tried, and so on."""
+        n = len(INCOMING_EDGES)
+        chosen, count, demand = first_lane, 0, 0.0
+        for offset in range(n):
+            lane = (first_lane + offset) % n
+            c, d, _ = count_vehicles_in_lane(INCOMING_EDGES[lane])
+            if c > 0:
+                chosen, count, demand = lane, c, d
+                break
+            print(f"[t={now:6.1f}s] Lane {lane + 1} ({INCOMING_EDGES[lane]}) | "
+                  f"no vehicles -> timer=0, skipped")
+        # (if ALL lanes are empty, 'first_lane' gets a MIN_TIMER green so the cycle keeps going)
+
+        edge = INCOMING_EDGES[chosen]
         # Count and timer are decided NOW and stay FIXED for this whole turn.
         self.fixed_count = count
         self.fixed_demand = demand
         self.fixed_timer = calculate_timer(demand)
-        self.current_lane = lane_index
+        self.current_lane = chosen
+        self.pending_lane = (chosen + 1) % n
         self.phase = self.GREEN
+        self.green_start_time = now
         self.timer_end_time = now + self.fixed_timer
         # Green ends YELLOW_TIME seconds before the timer reaches 0
         self.phase_end_time = self.timer_end_time - YELLOW_TIME
-        self._show_lane_colour(lane_index, "G")
-        print(f"[t={now:6.1f}s] Lane {lane_index + 1} ({edge}) | "
+        self._show_lane_colour(chosen, "G")
+        print(f"[t={now:6.1f}s] Lane {chosen + 1} ({edge}) | "
               f"vehicles={count} demand={demand:.1f}s -> timer={self.fixed_timer}s "
               f"(green {self.fixed_timer - YELLOW_TIME}s + yellow {YELLOW_TIME}s)")
 
@@ -423,9 +444,9 @@ class SignalController:
             self.phase = self.ALL_RED
             self.phase_end_time = now + ALL_RED_TIME
             self._show_all_red()
-        else:                                     # all-red finished -> next road (clockwise)
-            next_lane = (self.current_lane + 1) % len(INCOMING_EDGES)
-            self._start_green(next_lane, now)
+        else:
+            # all-red finished -> lane decided earlier (next lane, or the resumed lane)
+            self._start_green(self.pending_lane, now)
 
     # ---------- emergency (ambulance / fire truck) mode ----------
     def _find_ambulance_lane(self):
@@ -473,22 +494,42 @@ class SignalController:
         return "EMERGENCY"
 
     def _start_emergency(self, lane_index, now):
+        # Only the FIRST emergency decides where the normal cycle continues afterwards.
+        if not self.emergency_active and self.phase == self.GREEN:
+            served = now - self.green_start_time
+            if served <= RESUME_IF_GREEN_SECONDS:
+                self.pending_lane = self.current_lane      # barely started -> run it again later
+                note = (f"Lane {self.current_lane + 1} had only {served:.1f}s green -> "
+                        f"it will restart after the emergency")
+            else:
+                note = (f"Lane {self.current_lane + 1} had {served:.1f}s green -> "
+                        f"cycle continues with Lane {self.pending_lane + 1} after the emergency")
+            print(f"[t={now:6.1f}s] {note}")
+
         self.emergency_active = True
         self.emergency_lane = lane_index
         self._show_lane_colour(lane_index, "G")  # emergency lane green, others red
         print(f"[t={now:6.1f}s] EMERGENCY ({self._emergency_name(lane_index)}) on Lane {lane_index + 1} "
-              f"({INCOMING_EDGES[lane_index]}) -> green for it, others red")
+              f"({INCOMING_EDGES[lane_index]}) -> green for it, others blinking red")
 
     def _end_emergency(self, now):
         lane = self.emergency_lane
-        print(f"[t={now:6.1f}s] Emergency vehicle passed Lane {lane + 1} -> normal signals again")
+        n = len(INCOMING_EDGES)
+        # The emergency lane has just been served, so it is never the next lane
+        if self.pending_lane == lane:
+            self.pending_lane = (lane + 1) % n
+        print(f"[t={now:6.1f}s] Emergency vehicle passed Lane {lane + 1} -> YELLOW, then red, "
+              f"then Lane {self.pending_lane + 1} continues the cycle")
         self.emergency_active = False
         self.emergency_lane = None
-        # short all-red, then the normal cycle continues with the next road
+
+        # Emergency lane goes YELLOW first (not straight to red)
         self.current_lane = lane
-        self.phase = self.ALL_RED
-        self.phase_end_time = now + ALL_RED_TIME
-        self._show_all_red()
+        self.fixed_count, _d, _ = count_vehicles_in_lane(INCOMING_EDGES[lane])
+        self.phase = self.YELLOW
+        self.timer_end_time = now + YELLOW_TIME
+        self.phase_end_time = self.timer_end_time
+        self._show_lane_colour(lane, "y")
 
     # ---------- called after every simulation step ----------
     def update(self):
@@ -542,7 +583,9 @@ class SignalController:
                     circle_colour = COLOUR_GREEN if self.phase == self.GREEN else COLOUR_YELLOW
             else:
                 count, _demand, _ = count_vehicles_in_lane(edge)   # waiting road: live count
-                timer_text, circle_colour = "TIMER : --", COLOUR_RED
+                # empty waiting lane -> timer 0 (it will be skipped)
+                timer_text = "TIMER : 0" if count == 0 else "TIMER : --"
+                circle_colour = COLOUR_RED
 
             self._set_text(count_id, f"COUNT : {count}")
             self._set_text(timer_id, timer_text)

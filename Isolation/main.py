@@ -1,71 +1,458 @@
 # # # # # # # finaly we are starting the project again 
 
+# =============================================================================
+# TRAFFIC LIGHT CONTROLLER
+# =============================================================================
+# class SignalController:
+#     GREEN, YELLOW, ALL_RED = "GREEN", "YELLOW", "ALL_RED"
+#     def __init__(self):
+#         self.light_id, self.signals_of_lane, self.signal_count = self._find_traffic_light()
+#         self.label_ids = self._create_labels()
+#         self._last_shown = {}            # remembers what each label shows now
+#         self.current_lane = 0            # position in INCOMING_EDGES (0 = Lane 1)
+#         self.phase = None                # GREEN, YELLOW or ALL_RED
+#         self.phase_end_time = 0.0        # when the current colour ends
+#         self.timer_end_time = 0.0        # when the timer reaches 0
+#         self.green_start_time = 0.0      # when the current green started
+#         self.pending_lane = 0            # lane that gets green after the next all-red
+#         self.fixed_timer = 0             # timer chosen at the start (does not change)
+#         self.fixed_count = 0             # vehicle count at the start (does not change)
+#         self.fixed_demand = 0.0
+#         # Emergency (ambulance / fire truck) mode
+#         self.emergency_active = False
+#         self.emergency_lane = None       # index in INCOMING_EDGES of the emergency lane
+#         self.ambulance_edge = {}         # emergency vehicle id -> incoming road it is crossing
+#         self._start_green(self.current_lane, traci.simulation.getTime())
+
+#     # ---------- set-up helpers ----------
+#     def _find_traffic_light(self):
+#         """Finds the traffic light that controls our 4 incoming roads and
+#         works out which signal numbers belong to which road."""
+#         for light_id in traci.trafficlight.getIDList():
+#             signals = {edge: [] for edge in INCOMING_EDGES}
+#             links = traci.trafficlight.getControlledLinks(light_id)
+#             for index, link_group in enumerate(links):
+#                 for in_lane, _out, _via in link_group:
+#                     edge = traci.lane.getEdgeID(in_lane)
+#                     if edge in signals and index not in signals[edge]:
+#                         signals[edge].append(index)
+#             if all(signals.values()):
+#                 print(f"Controlling traffic light '{light_id}'")
+#                 return light_id, signals, len(links)
+#         raise RuntimeError(
+#             "No traffic light controls edges " + ", ".join(INCOMING_EDGES) +
+#             ". Open the network in netedit and set the junction type to "
+#             "'traffic_light'."
+#         )
+
+#     def _label_position(self, edge_id):
+#         """A spot beside the road, near the stop line."""
+#         shape = traci.lane.getShape(edge_id + "_0")
+#         (x1, y1), (x2, y2) = shape[-2], shape[-1]
+#         length = math.hypot(x2 - x1, y2 - y1) or 1.0
+#         dx, dy = (x2 - x1) / length, (y2 - y1) / length
+#         # 10 m back from the junction, 15 m to the left of the driving direction
+#         return x2 - dx * 10 - dy * 15, y2 - dy * 10 + dx * 15
+
+#     def _rectangle_shape(self, x, y):
+#         """Corner points of the black panel, centred on (x, y)."""
+#         w, h = PANEL_WIDTH / 2, PANEL_HEIGHT / 2
+#         return [(x - w, y - h), (x + w, y - h), (x + w, y + h), (x - w, y + h)]
+
+#     def _circle_shape(self, x, y, radius=CIRCLE_RADIUS):
+#         """Points that make a circle, centred on (x, y)."""
+#         points = []
+#         for step in range(24):
+#             angle = 2 * math.pi * step / 24
+#             points.append((x + radius * math.cos(angle),
+#                            y + radius * math.sin(angle)))
+#         return points
+
+#     def _create_labels(self):
+#         """Makes one label panel per road:
+#              black panel   (polygon)
+#              halo ring     (polygon)  - white highlight, only shown for the emergency lane
+#              light circle  (polygon)  - changes colour with the light
+#              'COUNT : n'   (text)     - top
+#              'TIMER : s'   (text)     - bottom
+#         Things are drawn in layers: panel, halo, circle, then text on top."""
+#         label_ids = {}
+#         for edge in INCOMING_EDGES:
+#             x, y = self._label_position(edge)
+#             panel_id, circle_id, halo_id = f"panel_{edge}", f"circle_{edge}", f"halo_{edge}"
+#             count_id, timer_id = f"count_{edge}", f"timer_{edge}"
+#             traci.polygon.add(panel_id, self._rectangle_shape(x, y),
+#                               COLOUR_PANEL, fill=True, layer=240)
+#             # halo has the same colour as the panel, so it is invisible until highlighted
+#             traci.polygon.add(halo_id, self._circle_shape(x, y, HALO_RADIUS),
+#                               COLOUR_PANEL, fill=True, layer=243)
+#             traci.polygon.add(circle_id, self._circle_shape(x, y),
+#                               COLOUR_RED, fill=True, layer=245)
+#             traci.poi.add(count_id, x, y + TEXT_DISTANCE, COLOUR_TEXT,
+#                           poiType="", layer=250, width=0.5, height=0.5)
+#             traci.poi.add(timer_id, x, y - TEXT_DISTANCE, COLOUR_TEXT,
+#                           poiType="", layer=250, width=0.5, height=0.5)
+#             label_ids[edge] = (count_id, timer_id, circle_id, halo_id)
+#         return label_ids
+
+#     # ---------- light colour helpers ----------
+#     def _show_lane_colour(self, lane_index, colour):
+#         """Give one road the colour ('G' or 'y'); all other roads stay red."""
+#         state = ["r"] * self.signal_count
+#         for i in self.signals_of_lane[INCOMING_EDGES[lane_index]]:
+#             state[i] = colour
+#         traci.trafficlight.setRedYellowGreenState(self.light_id, "".join(state))
+
+#     def _show_all_red(self):
+#         traci.trafficlight.setRedYellowGreenState(self.light_id, "r" * self.signal_count)
+
+#     # ---------- normal cycle ----------
+#     def _start_green(self, first_lane, now):
+#         """Starts green for first_lane. If that lane is EMPTY it is skipped
+#         (timer 0) and the next lane is tried, and so on."""
+#         n = len(INCOMING_EDGES)
+#         chosen, count, demand = first_lane, 0, 0.0
+#         for offset in range(n):
+#             lane = (first_lane + offset) % n
+#             c, d, _ = count_vehicles_in_lane(INCOMING_EDGES[lane])
+#             if c > 0:
+#                 chosen, count, demand = lane, c, d
+#                 break
+#             print(f"[t={now:6.1f}s] Lane {lane + 1} ({INCOMING_EDGES[lane]}) | "
+#                   f"no vehicles -> timer=0, skipped")
+#         # (if ALL lanes are empty, 'first_lane' gets a MIN_TIMER green so the cycle keeps going)
+
+#         edge = INCOMING_EDGES[chosen]
+#         # Count and timer are decided NOW and stay FIXED for this whole turn.
+#         self.fixed_count = count
+#         self.fixed_demand = demand
+#         self.fixed_timer = calculate_timer(demand)
+#         self.current_lane = chosen
+#         self.pending_lane = (chosen + 1) % n
+#         self.phase = self.GREEN
+#         self.green_start_time = now
+#         self.timer_end_time = now + self.fixed_timer
+#         # Green ends YELLOW_TIME seconds before the timer reaches 0
+#         self.phase_end_time = self.timer_end_time - YELLOW_TIME
+#         self._show_lane_colour(chosen, "G")
+#         print(f"[t={now:6.1f}s] Lane {chosen + 1} ({edge}) | "
+#               f"vehicles={count} demand={demand:.1f}s -> timer={self.fixed_timer}s "
+#               f"(green {self.fixed_timer - YELLOW_TIME}s + yellow {YELLOW_TIME}s)")
+
+#     def _go_to_next_phase(self, now):
+#         if self.phase == self.GREEN:              # only YELLOW_TIME seconds left
+#             self.phase = self.YELLOW
+#             self.phase_end_time = self.timer_end_time   # yellow lasts until timer = 0
+#             self._show_lane_colour(self.current_lane, "y")
+#         elif self.phase == self.YELLOW:           # timer reached 0
+#             self.phase = self.ALL_RED
+#             self.phase_end_time = now + ALL_RED_TIME
+#             self._show_all_red()
+#         else:
+#             # all-red finished -> lane decided earlier (next lane, or the resumed lane)
+#             self._start_green(self.pending_lane, now)
+
+#     # ---------- emergency (ambulance / fire truck) mode ----------
+#     def _find_ambulance_lane(self):
+#         """Returns the lane index that must get the emergency green, or None.
+#         An emergency vehicle is 'active' from the moment it is within
+#         AMBULANCE_DETECTION_DISTANCE of the stop line until it has left the
+#         junction. If two lanes have one, the closer one goes first."""
+#         candidates = {}                          # edge -> distance to stop line
+#         present = set()
+#         for vehicle_id in traci.vehicle.getIDList():
+#             if not vehicle_id.startswith(EMERGENCY_PREFIXES):
+#                 continue
+#             present.add(vehicle_id)
+#             road = traci.vehicle.getRoadID(vehicle_id)
+#             if road in INCOMING_EDGES:
+#                 lane_id = traci.vehicle.getLaneID(vehicle_id)
+#                 distance = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(vehicle_id)
+#                 if distance <= AMBULANCE_DETECTION_DISTANCE:
+#                     self.ambulance_edge[vehicle_id] = road
+#                     candidates[road] = min(distance, candidates.get(road, 1e9))
+#             elif road.startswith(":") and vehicle_id in self.ambulance_edge:
+#                 # inside the junction: keep the green until it is out
+#                 edge = self.ambulance_edge[vehicle_id]
+#                 candidates[edge] = min(0.0, candidates.get(edge, 1e9))
+#             else:
+#                 self.ambulance_edge.pop(vehicle_id, None)    # it has passed
+
+#         for vehicle_id in list(self.ambulance_edge):
+#             if vehicle_id not in present:
+#                 del self.ambulance_edge[vehicle_id]
+
+#         if not candidates:
+#             return None
+#         if self.emergency_lane is not None and INCOMING_EDGES[self.emergency_lane] in candidates:
+#             return self.emergency_lane           # keep serving the same vehicle
+#         nearest_edge = min(candidates, key=candidates.get)
+#         return INCOMING_EDGES.index(nearest_edge)
+
+#     def _emergency_name(self, lane_index):
+#         """Text for the label: AMBULANCE, FIRE TRUCK, or EMERGENCY if both are on that lane."""
+#         edge = INCOMING_EDGES[lane_index]
+#         kinds = {vid.split("_")[0] for vid, e in self.ambulance_edge.items() if e == edge}
+#         if len(kinds) == 1:
+#             return EMERGENCY_NAMES.get(kinds.pop(), "EMERGENCY")
+#         return "EMERGENCY"
+
+#     def _start_emergency(self, lane_index, now):
+#         # Only the FIRST emergency decides where the normal cycle continues afterwards.
+#         if not self.emergency_active and self.phase == self.GREEN:
+#             served = now - self.green_start_time
+#             if served <= RESUME_IF_GREEN_SECONDS:
+#                 self.pending_lane = self.current_lane      # barely started -> run it again later
+#                 note = (f"Lane {self.current_lane + 1} had only {served:.1f}s green -> "
+#                         f"it will restart after the emergency")
+#             else:
+#                 note = (f"Lane {self.current_lane + 1} had {served:.1f}s green -> "
+#                         f"cycle continues with Lane {self.pending_lane + 1} after the emergency")
+#             print(f"[t={now:6.1f}s] {note}")
+
+#         self.emergency_active = True
+#         self.emergency_lane = lane_index
+#         self._show_lane_colour(lane_index, "G")  # emergency lane green, others red
+#         print(f"[t={now:6.1f}s] EMERGENCY ({self._emergency_name(lane_index)}) on Lane {lane_index + 1} "
+#               f"({INCOMING_EDGES[lane_index]}) -> green for it, others blinking red")
+
+#     def _end_emergency(self, now):
+#         lane = self.emergency_lane
+#         n = len(INCOMING_EDGES)
+#         # The emergency lane has just been served, so it is never the next lane
+#         if self.pending_lane == lane:
+#             self.pending_lane = (lane + 1) % n
+#         print(f"[t={now:6.1f}s] Emergency vehicle passed Lane {lane + 1} -> YELLOW, then red, "
+#               f"then Lane {self.pending_lane + 1} continues the cycle")
+#         self.emergency_active = False
+#         self.emergency_lane = None
+
+#         # Emergency lane goes YELLOW first (not straight to red)
+#         self.current_lane = lane
+#         self.fixed_count, _d, _ = count_vehicles_in_lane(INCOMING_EDGES[lane])
+#         self.phase = self.YELLOW
+#         self.timer_end_time = now + YELLOW_TIME
+#         self.phase_end_time = self.timer_end_time
+#         self._show_lane_colour(lane, "y")
+
+#     # ---------- called after every simulation step ----------
+#     def update(self):
+#         now = traci.simulation.getTime()
+#         ambulance_lane = self._find_ambulance_lane()
+
+#         if ambulance_lane is not None:
+#             if not self.emergency_active or self.emergency_lane != ambulance_lane:
+#                 self._start_emergency(ambulance_lane, now)
+#             self._update_emergency_labels(now)
+#             return
+
+#         if self.emergency_active:
+#             self._end_emergency(now)
+
+#         if now >= self.phase_end_time - 1e-9:
+#             self._go_to_next_phase(now)
+#         self._update_labels(now)
+
+#     def _update_emergency_labels(self, now):
+#         """Emergency lane: green dot with a white highlight ring.
+#         All other lanes: blinking red dot."""
+#         blink_on = int(now / BLINK_SECONDS) % 2 == 0
+#         for i, edge in enumerate(INCOMING_EDGES):
+#             count_id, timer_id, circle_id, halo_id = self.label_ids[edge]
+#             count, _demand, _ = count_vehicles_in_lane(edge)
+#             if i == self.emergency_lane:
+#                 timer_text = self._emergency_name(self.emergency_lane)
+#                 circle_colour, halo_colour = COLOUR_GREEN, COLOUR_HALO
+#             else:
+#                 timer_text = "STOP"
+#                 circle_colour = COLOUR_RED if blink_on else COLOUR_RED_DIM
+#                 halo_colour = COLOUR_PANEL
+#             self._set_text(count_id, f"COUNT : {count}")
+#             self._set_text(timer_id, timer_text)
+#             self._set_circle_colour(circle_id, circle_colour)
+#             self._set_circle_colour(halo_id, halo_colour)
+
+#     def _update_labels(self, now):
+#         for i, edge in enumerate(INCOMING_EDGES):
+#             count_id, timer_id, circle_id, halo_id = self.label_ids[edge]
+
+#             if i == self.current_lane:
+#                 # Active road: count stays FIXED at the value used for the timer
+#                 count = self.fixed_count
+#                 if self.phase == self.ALL_RED:
+#                     timer_text, circle_colour = "TIMER : 0", COLOUR_RED
+#                 else:
+#                     seconds_left = max(0, math.ceil(self.timer_end_time - now - 1e-9))
+#                     timer_text = f"TIMER : {seconds_left}"    # one countdown for green + yellow
+#                     circle_colour = COLOUR_GREEN if self.phase == self.GREEN else COLOUR_YELLOW
+#             else:
+#                 count, _demand, _ = count_vehicles_in_lane(edge)   # waiting road: live count
+#                 # empty waiting lane -> timer 0 (it will be skipped)
+#                 timer_text = "TIMER : 0" if count == 0 else "TIMER : --"
+#                 circle_colour = COLOUR_RED
+
+#             self._set_text(count_id, f"COUNT : {count}")
+#             self._set_text(timer_id, timer_text)
+#             self._set_circle_colour(circle_id, circle_colour)
+#             self._set_circle_colour(halo_id, COLOUR_PANEL)         # no highlight in normal mode
+
+#     def _set_text(self, text_id, text):
+#         """Changes the text only if it is different."""
+#         if self._last_shown.get(text_id) != text:
+#             traci.poi.setType(text_id, text)
+#             self._last_shown[text_id] = text
+
+#     def _set_circle_colour(self, circle_id, colour):
+#         """Changes the circle / halo colour only if it is different."""
+#         if self._last_shown.get(circle_id) != colour:
+#             traci.polygon.setColor(circle_id, colour)
+#             self._last_shown[circle_id] = colour
+
+# =============================================================================
+# TRAFFIC SOUND
+# =============================================================================
+
+# class TrafficSound:
+#     """Plays traffic sounds from the .wav files in the 'sounds' folder:
+#          1. A traffic hum that gets louder when more vehicles are moving.
+#          2. Horns from vehicles that have been waiting for a long time.
+#          3. A siren while any ambulance is on the road.
+#          4. A different siren while any fire truck is on the road."""
+
+#     SOUND_NAMES = ["traffic_hum", "horn_car", "horn_bike", "horn_bus",
+#                    "horn_truck", "siren", "siren_fire"]
+
+#     def __init__(self):
+#         self.ready = False
+#         self.step_number = 0
+#         self.hum_volume = 0.0
+#         self.siren_volume = 0.0
+#         self.fire_siren_volume = 0.0
+#         self.last_honk_time = 0.0
+#         if not SOUND_ON:
+#             return
+#         try:
+#             import pygame
+#             pygame.mixer.init()
+#             pygame.mixer.set_num_channels(16)
+#             self.sounds = {
+#                 name: pygame.mixer.Sound(os.path.join(SOUND_DIR, name + ".wav"))
+#                 for name in self.SOUND_NAMES
+#             }
+#             # looping sounds start silent; update() raises the volume when needed
+#             for name in ("traffic_hum", "siren", "siren_fire"):
+#                 self.sounds[name].set_volume(0.0)
+#                 self.sounds[name].play(loops=-1)
+#             self.pygame = pygame
+#             self.ready = True
+#             print("Sound is ON")
+#         except ImportError:
+#             print("Sound is OFF. To turn it on, run:  pip install pygame")
+#         except Exception as e:
+#             print("Sound is OFF:", e)
+
+#     def update(self):
+#         """Call this after every simulation step."""
+#         if not self.ready:
+#             return
+#         self.step_number += 1
+#         if self.step_number % CHECK_SOUND_EVERY_STEPS != 0:
+#             return
+
+#         moving_count = 0
+#         ambulance_count = 0
+#         fire_count = 0
+#         waiting_vehicles = []
+#         for vehicle_id in traci.vehicle.getIDList():
+#             vehicle_type = traci.vehicle.getTypeID(vehicle_id)
+#             if vehicle_type == "ambulance":
+#                 ambulance_count += 1
+#             elif vehicle_type == "firetruck":
+#                 fire_count += 1
+#             speed = traci.vehicle.getSpeed(vehicle_id)
+#             if speed > 0.5:
+#                 moving_count += 1
+#             elif speed < 0.1 and traci.vehicle.getWaitingTime(vehicle_id) >= HONK_AFTER_WAITING:
+#                 waiting_vehicles.append((vehicle_id, vehicle_type))
+
+#         # 1. Traffic hum: more moving vehicles = louder (changes smoothly)
+#         target = min(1.0, moving_count / FULL_VOLUME_VEHICLES) * HUM_MAX_VOLUME
+#         self.hum_volume += (target - self.hum_volume) * 0.2
+#         self.sounds["traffic_hum"].set_volume(self.hum_volume)
+
+#         # 2. Sirens: each plays while its vehicle type is in the simulation
+#         siren_target = SIREN_VOLUME if ambulance_count > 0 else 0.0
+#         self.siren_volume += (siren_target - self.siren_volume) * 0.3
+#         self.sounds["siren"].set_volume(self.siren_volume)
+
+#         fire_target = FIRE_SIREN_VOLUME if fire_count > 0 else 0.0
+#         self.fire_siren_volume += (fire_target - self.fire_siren_volume) * 0.3
+#         self.sounds["siren_fire"].set_volume(self.fire_siren_volume)
+
+#         # 3. Horn: a long-waiting vehicle may honk now and then
+#         if waiting_vehicles and random.random() < HONK_CHANCE:
+#             if time.time() - self.last_honk_time >= HONK_GAP_SECONDS:
+#                 _, vehicle_type = random.choice(waiting_vehicles)
+#                 horn = self.sounds[HORN_OF_VEHICLE.get(vehicle_type, "horn_car")]
+#                 horn.set_volume(HONK_VOLUME)
+#                 horn.play()
+#                 self.last_honk_time = time.time()
+
+#     def stop(self):
+#         if self.ready:
+#             self.pygame.mixer.quit()
+
+# Finalised code with logic :
+
 import math
-import os
-import random
-import time
+import os 
+import random 
+import time 
+import traci 
 import xml.etree.ElementTree as ET
-import traci
 
-# =============================================================================
-# FILE PATHS
-# =============================================================================
+# xxxxxxxxxxxx Files from the local ( External files )
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROUTE_FILE = os.path.join(PROJECT_DIR, "Editfile.rou.xml")
-SUMO_CONFIG = os.path.join(PROJECT_DIR, "Visuals.sumocfg")
-GUI_SETTINGS_FILE = os.path.join(PROJECT_DIR, "gui_settings.xml")   # created automatically
-BACKGROUND_IMAGE = os.path.join(PROJECT_DIR, "IsolationArielImage.png")
+ROUTE_FILE = os.path.join(PROJECT_DIR, "Editfile.rou.xml") #Route file 
+SUMO_CONFIG = os.path.join(PROJECT_DIR, "Visuals.sumocfg") #Visuals file Main edit file 
+GUI_SETTINGS_FILE = os.path.join(PROJECT_DIR, "gui_settings.xml") # guiSettings file 
+BACKGROUND_IMAGE = os.path.join(PROJECT_DIR, "IsolationArielImage.png") # background image 
 
-# =============================================================================
-# SIMULATION SETTINGS
-# =============================================================================
-SIMULATION_TIME = 300          # how long vehicles keep being added (seconds)
+# xxxxxxxxxxxx Simulation Settings xxxxxxxxxxxxx 
+SIMULATION_TIME = 300 #in seconds 
 NUMBER_OF_VEHICLES = 300
-STEP_LENGTH = 0.1              # simulated seconds per step
-GUI_DELAY_MS = 1000            # real milliseconds per step (bigger = slower to watch)
+STEP_LENGTH = 0.1 
+GUI_DELAY_MS = 1000 #1000 miliS = 1 S 
 
-# Camera view of the SUMO window
-VIEW_X, VIEW_Y, VIEW_ZOOM, VIEW_ANGLE = 0, 0, 150, 0
-IMAGE_WIDTH, IMAGE_HEIGHT = 210.12, 189.22      # background image size in metres
-USE_GUI = os.environ.get("USE_GUI", "1") == "1"
+VIEW_X, VIEW_Y, VIEW_ZOOM, VIEW_ANGLE = 0,0,150,0
+IMAGE_WIDTH, IMAGE_HEIGHT = 210.12, 189.22  #Background image 
+USE_GUI = os.environ.get("USE_GUI", "1")== "1"
 
-# =============================================================================
-# LABEL LOOK  (one black panel near each road)
-#     COUNT : 12      <- top text
-#         (o)         <- circle, shows the light colour (red / green / yellow)
-#     TIMER : 15      <- bottom text
-# =============================================================================
-TEXT_DISTANCE = 4.0            # metres from the panel centre to the top / bottom text
-PANEL_WIDTH = 17.0             # metres - make bigger if the text does not fit
-PANEL_HEIGHT = 14.0            # metres
-CIRCLE_RADIUS = 1.6            # metres - size of the light circle
-HALO_RADIUS = 2.6              # metres - highlight ring behind the circle (emergency lane)
-
-# Colours (Red, Green, Blue, Opacity)
+# xxxxxxxxxxxx Default GUI Settings xxxxxxxxxxxx
+#For lables 
+TEXT_DISTANCE = 4.0 
+PANEL_WIDTH = 17.0
+PANEL_HEIGHT = 14.0
+CIRCLE_RADIUS = 1.6
+HALO_RADIUS = 2.6
+#COLOURS 
 COLOUR_RED = (220, 30, 30, 255)
-COLOUR_RED_DIM = (90, 0, 0, 255)           # "off" moment of a blinking red dot
+COLOUR_RED_DIM = (90, 0, 0, 255) #Blinking        
 COLOUR_GREEN = (0, 200, 0, 255)
 COLOUR_YELLOW = (255, 200, 0, 255)
-COLOUR_PANEL = (0, 0, 0, 255)              # black panel
-COLOUR_TEXT = (255, 255, 255, 255)         # white text
-COLOUR_HALO = (255, 255, 255, 255)         # highlight ring around the emergency lane dot
+COLOUR_PANEL = (0, 0, 0, 255) #Black          
+COLOUR_TEXT = (255, 255, 255, 255) #White         
+COLOUR_HALO = (255, 255, 255, 255) #white
 
-# =============================================================================
-# ROAD LAYOUT
-# =============================================================================
-# Roads coming INTO the junction, in clockwise order  ->  Lane 1, 2, 3, 4.
-# If the clockwise order on your map is different, just change the order here.
+# xxxxxxxxxxx Road layout and paths xxxxxxxxxxx
 INCOMING_EDGES = ["E2", "E4", "E6", "E8"]
-
-# For each incoming road, the possible paths a vehicle can take
 VALID_ROUTES = {
     "E2": [["E2", "E3"], ["E2", "E5"], ["E2", "E7"]],
     "E4": [["E4", "E5"], ["E4", "E7"], ["E4", "E1"]],
     "E6": [["E6", "E7"], ["E6", "E1"], ["E6", "E3"]],
     "E8": [["E8", "E1"], ["E8", "E3"], ["E8", "E5"]],
 }
-
-# Vehicle type and its chance (in %)   (emergency vehicles are NOT here, see below)
+# Vehicle type and its chance (in %)
 VEHICLE_TYPES = [
     ("car", 55),
     ("motorcycle", 25),
@@ -74,11 +461,8 @@ VEHICLE_TYPES = [
     ("van", 5),
 ]
 
-# =============================================================================
-# SIGNAL SETTINGS  (change these while testing)
-# =============================================================================
-# Green time (seconds) that ONE vehicle of each type needs to cross.
-# Lane demand = sum of (number of vehicles x seconds per vehicle)
+# xxxxxxxxxxxx Signal Settings xxxxxxxxxxxx
+# Weight of each vehicle 
 SECONDS_PER_VEHICLE = {
     "motorcycle": 0.5,
     "car": 1.0,
@@ -88,31 +472,29 @@ SECONDS_PER_VEHICLE = {
     "ambulance": 1.5,
     "firetruck": 1.5,
 }
+
 DEFAULT_SECONDS_PER_VEHICLE = 1.0
-DETECTION_DISTANCE = 80.0      # metres before the stop line where vehicles are counted
-MIN_TIMER = 10                 # shortest timer in seconds (includes the yellow time)
-MAX_TIMER = 40                 # longest timer in seconds
-YELLOW_TIME = 3                # last N seconds of the timer show YELLOW
-ALL_RED_TIME = 2               # seconds when every light is red, after timer hits 0
-RESUME_IF_GREEN_SECONDS = 10    # if an emergency interrupts a lane that had at most this many
+DETECTION_DISTANCE = 80.0 # Upto 80m from junction vehicle will be counted 
+MIN_TIMER = 10 
+MAX_TIMER = 40 
+YELLOW_TIME = 3
+ALL_RED_TIME = 2 
+RESUME_IF_GREEN_SECONDS = 10 # This is for E.V. crossing 
 assert MIN_TIMER > YELLOW_TIME
 
-# =============================================================================
-# SOUND SETTINGS  (needs:  pip install pygame)
-# =============================================================================
-SOUND_ON = True                    # set to False to run without any sound
-SOUND_DIR = os.path.join(PROJECT_DIR, "sounds")   # sound files are kept here
-CHECK_SOUND_EVERY_STEPS = 5        # look at the vehicles every N steps (saves computer power)
-FULL_VOLUME_VEHICLES = 40          # this many moving vehicles = traffic hum at full volume
-HUM_MAX_VOLUME = 0.5               # 0.0 (silent) to 1.0 (loudest)
-HONK_AFTER_WAITING = 8             # a vehicle waiting this many seconds may honk
-HONK_CHANCE = 0.3                  # chance of a honk at each check (0.0 to 1.0)
-HONK_GAP_SECONDS = 1.5             # minimum REAL seconds between two honks
+# xxxxxxxxxxxx Sound Settings xxxxxxxxxxxx
+SOUND_ON = True 
+SOUND_DIR = os.path.join(PROJECT_DIR , "sounds") #External folder 
+CHECK_SOUND_EVERY_STEPS = 5
+FULL_VOLUME_VEHICLES = 40
+HUM_MAX_VOLUME = 0.5
+HONK_AFTER_WAITING = 8
+HONK_CHANCE = 0.3
+HONK_GAP_SECONDS = 1.5
 HONK_VOLUME = 0.6
-SIREN_VOLUME = 0.7                 # ambulance siren, 0.0 (silent) to 1.0 (loudest)
-FIRE_SIREN_VOLUME = 0.7            # fire truck siren
+SIREN_VOLUME = 0.7
+FIRE_SIREN_VOLUME = 0.7
 
-# Which horn sound each vehicle type uses
 HORN_OF_VEHICLE = {
     "car": "horn_car",
     "van": "horn_car",
@@ -121,30 +503,19 @@ HORN_OF_VEHICLE = {
     "truck": "horn_truck",
 }
 
-# =============================================================================
-# EMERGENCY VEHICLE SETTINGS  (ambulance + fire truck)
-# =============================================================================
-AMBULANCE_ON = True
-FIRETRUCK_ON = True
-# Exactly 1 ambulance AND 1 fire truck per lane (8 in total), spread over the simulation.
-# Most of the time only 1 emergency vehicle is on the road.
-# With this chance, TWO start at the same moment (never more than 2).
-# The pair is preferably 1 ambulance + 1 fire truck on different lanes.
-AMBULANCE_PAIR_CHANCE = 0.5        # 0.0 = never together, 1.0 = always one pair
+# xxxxxxxxxxxxxx Emergency Vehicle Settings xxxxxxxxxxxxx
+AMBULANCE_ON =True
+FIRETRUCK_ON =True
+AMBULANCE_PAIR_CHANCE = 0.5 # 0.0 = never together, 1.0 = always one pair
 AMBULANCE_START_FRACTION = 0.10
 AMBULANCE_END_FRACTION = 0.90
-
-EMERGENCY_PREFIXES = ("ambulance_", "firetruck_")   # vehicle ids start with these
+EMERGENCY_PREFIXES = ("ambulance_", "firetruck_") # E.V.Id's
 EMERGENCY_NAMES = {"ambulance": "AMBULANCE", "firetruck": "FIRE TRUCK"}
+AMBULANCE_DETECTION_DISTANCE = 100.0 #Upto 100m the E.V. detected 
+BLINK_SECONDS =0.5
 
-# Emergency mode: when an emergency vehicle is this close (metres) to the stop line,
-# its lane turns GREEN and all other lanes BLINK RED until it has crossed.
-AMBULANCE_DETECTION_DISTANCE = 100.0
-BLINK_SECONDS = 0.5                # how fast the red dots blink (simulated seconds)
-
-# =============================================================================
-# CREATE RANDOM TRAFFIC
-# =============================================================================
+# xxxxxxxxxxxxxxx Create Random Traffic xxxxxxxxxxxxxxx
+# Decide random type of vehicle 
 def pick_random_vehicle_type():
     weighted_list = []
     for vehicle_type, chance in VEHICLE_TYPES:
@@ -152,10 +523,6 @@ def pick_random_vehicle_type():
     return random.choice(weighted_list)
 
 def add_emergency_vehicles(vehicle_list):
-    """Adds 1 ambulance + 1 fire truck for every lane.
-    The time between START and END is cut into equal slots, one slot per
-    vehicle. Sometimes (AMBULANCE_PAIR_CHANCE) two vehicles share ONE slot,
-    so at most 2 emergency vehicles come at the same time."""
     fleet = []
     if AMBULANCE_ON:
         fleet += [("ambulance", edge) for edge in INCOMING_EDGES]
@@ -168,8 +535,6 @@ def add_emergency_vehicles(vehicle_list):
     groups = [[vehicle] for vehicle in fleet]
     if len(groups) >= 2 and random.random() < AMBULANCE_PAIR_CHANCE:
         first = groups[0][0]
-        # 1st choice: different type AND different lane (ambulance + fire truck)
-        # 2nd choice: just a different lane
         for strict in (True, False):
             partner = next((g for g in groups[1:]
                             if g[0][1] != first[1] and (not strict or g[0][0] != first[0])), None)
@@ -177,8 +542,7 @@ def add_emergency_vehicles(vehicle_list):
                 groups.remove(partner)
                 groups[0].append(partner[0])
                 break
-    random.shuffle(groups)                   # the pair can be early or late
-
+    random.shuffle(groups) # the pair can be early or late
     window_start = AMBULANCE_START_FRACTION * SIMULATION_TIME
     window_end = AMBULANCE_END_FRACTION * SIMULATION_TIME
     slot_width = (window_end - window_start) / len(groups)
@@ -229,9 +593,7 @@ def create_random_traffic():
     print(f"Created {NUMBER_OF_VEHICLES} vehicles + {emergency_count} emergency vehicles")
     print(f"Route file: {ROUTE_FILE}")
 
-# =============================================================================
-# GUI SETTINGS FILE
-# =============================================================================
+# xxxxxxxxxxxxx GUI Settings File xxxxxxxxxxxxxx
 def write_gui_settings():
     """Creates the settings file for the SUMO window: text style, speed,
     camera position and the background image.
@@ -259,42 +621,30 @@ def write_gui_settings():
     with open(GUI_SETTINGS_FILE, "w") as f:
         f.write(xml)
 
-# =============================================================================
-# COUNT VEHICLES NEAR THE STOP LINE
-# =============================================================================
+# xxxxxxxxxxxxxx Count Vehicles near the stop line xxxxxxxxxxxxxx
 def count_vehicles_in_lane(edge_id):
-    """Returns (vehicle_count, demand_seconds, count_per_type) for one road.
-    Only vehicles within DETECTION_DISTANCE metres of the stop line are counted."""
     count_per_type = {}
     for vehicle_id in traci.edge.getLastStepVehicleIDs(edge_id):
         lane_id = traci.vehicle.getLaneID(vehicle_id)
-        distance_to_stop_line = traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(vehicle_id)
-        if distance_to_stop_line <= DETECTION_DISTANCE:
+        distance_to_stop_line =  traci.lane.getLength(lane_id) - traci.vehicle.getLanePosition(vehicle_id)
+        if distance_to_stop_line <= DETECTION_DISTANCE : 
             vehicle_type = traci.vehicle.getTypeID(vehicle_id)
             count_per_type[vehicle_type] = count_per_type.get(vehicle_type, 0) + 1
 
     vehicle_count = sum(count_per_type.values())
-    # Demand (seconds) = sum of (number of vehicles x seconds per vehicle type)
-    demand_seconds = sum(
-        SECONDS_PER_VEHICLE.get(t, DEFAULT_SECONDS_PER_VEHICLE) * n
-        for t, n in count_per_type.items()
+    demand_second = sum(
+        SECONDS_PER_VEHICLE.get(t,DEFAULT_SECONDS_PER_VEHICLE) * n
+        for t , n in count_per_type.items()
     )
-    return vehicle_count, demand_seconds, count_per_type
+    return vehicle_count, demand_second, count_per_type
 
-# =============================================================================
-# MAIN RULE: traffic demand -> timer
-# =============================================================================
+# xxxxxxxxxxxxxxx Calculate Timer xxxxxxxxxxxxxx
 def calculate_timer(demand_seconds):
-    """Total timer in whole seconds (the last YELLOW_TIME seconds are yellow).
-       Few vehicles  -> timer = MIN_TIMER
-       Many vehicles -> timer = MAX_TIMER
-       Otherwise     -> timer = demand in seconds"""
     total = math.ceil(demand_seconds)
     return max(MIN_TIMER, min(MAX_TIMER, total))
 
-# =============================================================================
-# TRAFFIC LIGHT CONTROLLER
-# =============================================================================
+# xxxxxxxxxxxxxx Main If - else rules Controller xxxxxxxxxxxxxx
+
 class SignalController:
     GREEN, YELLOW, ALL_RED = "GREEN", "YELLOW", "ALL_RED"
     def __init__(self):
@@ -600,20 +950,9 @@ class SignalController:
             traci.polygon.setColor(circle_id, colour)
             self._last_shown[circle_id] = colour
 
-# =============================================================================
-# TRAFFIC SOUND
-# =============================================================================
-
+# xxxxxxxxxxxxxx Traffic Sound xxxxxxxxxxxxx
 class TrafficSound:
-    """Plays traffic sounds from the .wav files in the 'sounds' folder:
-         1. A traffic hum that gets louder when more vehicles are moving.
-         2. Horns from vehicles that have been waiting for a long time.
-         3. A siren while any ambulance is on the road.
-         4. A different siren while any fire truck is on the road."""
-
-    SOUND_NAMES = ["traffic_hum", "horn_car", "horn_bike", "horn_bus",
-                   "horn_truck", "siren", "siren_fire"]
-
+    SOUND_NAMES = ["traffic_hum", "horn_car", "horn_bike", "horn_bus", "horn_truck", "siren", "siren_fire"]
     def __init__(self):
         self.ready = False
         self.step_number = 0
@@ -631,7 +970,6 @@ class TrafficSound:
                 name: pygame.mixer.Sound(os.path.join(SOUND_DIR, name + ".wav"))
                 for name in self.SOUND_NAMES
             }
-            # looping sounds start silent; update() raises the volume when needed
             for name in ("traffic_hum", "siren", "siren_fire"):
                 self.sounds[name].set_volume(0.0)
                 self.sounds[name].play(loops=-1)
@@ -694,22 +1032,18 @@ class TrafficSound:
         if self.ready:
             self.pygame.mixer.quit()
 
-# =============================================================================
-# START SUMO AND RUN
-# =============================================================================
+# xxxxxxxxxxxxxxx Start SUMO And Run xxxxxxxxxxxxxxx
 def start_sumo():
     if not os.path.exists(SUMO_CONFIG):
-        print("ERROR: Visuals.sumocfg not found")
+        print("Error : Visuals.sumocfg not found...")
         print(SUMO_CONFIG)
         return False
-
     if "SUMO_HOME" not in os.environ:
-        print("ERROR: SUMO_HOME is not set")
+        print("Error : SUMO_HOME is not set")
         return False
-
     program_name = "sumo-gui" if USE_GUI else "sumo"
     if os.name == "nt":
-        program_name += ".exe"
+        program_name +=".exe"
     sumo_program = os.path.join(os.environ["SUMO_HOME"], "bin", program_name)
 
     if not os.path.exists(sumo_program):
@@ -722,7 +1056,6 @@ def start_sumo():
     if USE_GUI:
         write_gui_settings()
         command += ["--delay", str(GUI_DELAY_MS), "--gui-settings-file", GUI_SETTINGS_FILE]
-
     try:
         traci.start(command)
         return True
@@ -732,27 +1065,28 @@ def start_sumo():
         return False
 
 def run_simulation():
-    print("AI TRAFFIC MANAGEMENT SYSTEM")
-    print("-----------------------------")
-
+    print("At Traffic Management System")
     create_random_traffic()
-
     if not start_sumo():
         return
-    print("Simulation started")
+    print("Simulation Started")
     sound = TrafficSound()
     try:
         controller = SignalController()
-        while traci.simulation.getMinExpectedNumber() > 0:
+        while traci.simulation.getMinExpectedNumber()>0:
             traci.simulationStep()
             controller.update()
             sound.update()
     except RuntimeError as e:
-        print("ERROR:", e)
+        print("Error: ", e)
     finally:
         sound.stop()
         traci.close()
-    print("Simulation finished")
-
+    print("Simulation finished...")
 if __name__ == "__main__":
     run_simulation()
+
+    
+
+
+
